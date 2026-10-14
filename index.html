@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JFrytesPlanner</title>
+<meta name="description" content="Tutorial schedule with Today, Week and Month views. Works offline.">
+<meta name="theme-color" content="#fbf7f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a151b" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="JFrytesPlanner">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+/* Layout: one-screen phone app — sticky header, scrolling view, bottom tab bar, bottom-sheet editor */
+:root{
+  --bg:#fbf7f9; --surface:#ffffff; --fg:#2b2330; --muted:#7d6f80; --line:#eadfe6;
+  --accent:#c2457c; --accent-soft:#fbe3ee; --accent-fg:#ffffff;
+  --today:#fff3c4; --now:#2f7a5c;
+  --display:"Marker Felt","Chalkboard SE","Bradley Hand","Segoe Print","Comic Sans MS",cursive;
+  --body:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){ :root{
+  --bg:#1a151b; --surface:#241d26; --fg:#f3eaf0; --muted:#a898a5; --line:#3a2f3b;
+  --accent:#e76fa3; --accent-soft:#3d2432; --accent-fg:#1a151b; --today:#3a3320; --now:#6cc99f; color-scheme:dark } }
+
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.4;display:flex;flex-direction:column;overflow:hidden;-webkit-text-size-adjust:100%}
+*{box-sizing:border-box}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+header{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-top:calc(10px + env(safe-area-inset-top,0px));padding-bottom:8px;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;z-index:5}
+header h1{margin:0;font-family:var(--display);font-weight:600;font-size:28px;line-height:1;color:var(--accent)}
+header .sub{font-size:13px;color:var(--muted);margin-top:3px}
+.nav{display:flex;align-items:center;gap:4px}
+.icon-btn{background:none;border:1px solid var(--line);border-radius:999px;width:36px;height:36px;display:grid;place-items:center;color:var(--fg)}
+.icon-btn:active{background:var(--accent-soft)}
+.pill{background:none;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:700;color:var(--fg)}
+
+main{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px calc(100px + env(safe-area-inset-bottom,0px))}
+.view[hidden]{display:none}
+[hidden]{display:none!important}
+
+h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px;font-weight:700}
+h2:first-child{margin-top:0}
+
+.list{display:flex;flex-direction:column;gap:8px}
+.card{display:grid;grid-template-columns:78px 1fr auto;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 12px;text-align:left;width:100%;min-width:0}
+.card .time{font-variant-numeric:tabular-nums;font-weight:800;font-size:15px;line-height:1.2}
+.card .time small{display:block;font-weight:600;font-size:12px;color:var(--muted)}
+.card .who{font-weight:700;font-size:17px;min-width:0;overflow-wrap:anywhere}
+.card .who .note{display:block;font-weight:600;font-size:13px;color:var(--muted)}
+.card .tag{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}
+.card.now{border-color:var(--now);box-shadow:inset 3px 0 0 var(--now)}
+.card.now .tag{color:var(--now);border-color:var(--now)}
+.card.past{opacity:.55}
+.empty{color:var(--muted);font-size:15px;padding:14px;border:1px dashed var(--line);border-radius:14px;text-align:center}
+
+/* install hint */
+.hint{background:var(--accent-soft);border-radius:14px;padding:10px 12px;font-size:14px;line-height:1.35;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start}
+.hint b{display:block}
+.hint button{margin-left:auto;flex:0 0 auto}
+
+/* week */
+.wk-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.wk-head b{font-size:15px}
+.day{border-top:1px solid var(--line);padding:10px 0}
+.day:first-of-type{border-top:0}
+.day-h{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
+.day-h .dn{font-weight:800;font-size:15px}
+.day-h .dd{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+.day.is-today .day-h .dn{background:var(--accent);color:var(--accent-fg);border-radius:8px;padding:0 8px}
+.day .list .card{padding:8px 10px}
+.day .none{color:var(--muted);font-size:13px;padding-left:2px}
+
+/* month */
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal .dow{text-align:center;font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.04em;padding-bottom:4px}
+.cal button{background:var(--surface);border:1px solid var(--line);border-radius:10px;aspect-ratio:1/1.05;max-width:100%;padding:4px 2px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;font-variant-numeric:tabular-nums;font-weight:700;font-size:14px;color:var(--fg)}
+.cal button.other{opacity:.35}
+.cal button.today{background:var(--today)}
+.cal button.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.cal button.wknd{color:var(--accent)}
+.cal .cnt{font-size:10px;font-weight:800;background:var(--accent);color:var(--accent-fg);border-radius:999px;min-width:17px;padding:1px 5px;line-height:1.3}
+.cal .cnt.z{visibility:hidden}
+
+/* tabs */
+.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);display:flex;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-bottom:env(safe-area-inset-bottom,0px);z-index:5}
+.tabs button{flex:1;background:none;border:0;padding:10px 4px 8px;font-size:12px;font-weight:700;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px}
+.tabs button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tabs button.on{color:var(--accent)}
+.fab{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(66px + env(safe-area-inset-bottom,0px));width:54px;height:54px;border-radius:999px;background:var(--accent);color:var(--accent-fg);border:0;font-size:30px;line-height:1;box-shadow:0 6px 18px rgba(0,0,0,.2);z-index:6}
+
+/* sheet */
+.scrim{position:fixed;inset:0;background:rgba(20,10,20,.45);z-index:10}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:92%;overflow-y:auto;background:var(--surface);border-radius:18px 18px 0 0;z-index:11;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px calc(16px + env(safe-area-inset-bottom,0px))}
+.sheet h3{margin:0 0 12px;font-size:19px;font-weight:800}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.field label{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.field input[type=text],.field input[type=time],.field input[type=date],.field textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:16px;min-width:0;-webkit-appearance:none;appearance:none}
+.row{display:flex;gap:10px}
+.row .field{flex:1;min-width:0}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{flex:1;background:none;border:0;padding:9px;font-weight:700;color:var(--muted)}
+.seg button.on{background:var(--accent);color:var(--accent-fg)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:7px 0;font-weight:700;font-size:13px;width:calc((100% - 36px)/7);min-width:40px}
+.chips button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.actions{display:flex;gap:10px;margin-top:6px}
+.btn{flex:1;border:0;border-radius:12px;padding:12px;font-weight:800;font-size:16px}
+.btn.primary{background:var(--accent);color:var(--accent-fg)}
+.btn.ghost{background:none;border:1px solid var(--line);color:var(--fg)}
+.btn.danger{background:none;border:1px solid var(--line);color:#c23b3b;flex:0 0 auto;padding-inline:14px}
+.confirm{margin-top:10px;background:var(--accent-soft);border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600}
+.confirm button{margin-left:auto}
+.err{color:#c23b3b;font-size:13px;font-weight:700;margin:-6px 0 10px}
+.menu p{color:var(--muted);font-size:14px;margin:0 0 10px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(80px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:999px;font-size:14px;font-weight:700;z-index:20;border:0;white-space:nowrap}
+@media (prefers-reduced-motion:no-preference){ .sheet{animation:up .22s ease-out} @keyframes up{from{transform:translateY(30px);opacity:0}} }
+@media (min-width:700px){ main,header,.tabs{max-width:560px;margin-inline:auto;width:100%} .sheet{max-width:560px;margin-inline:auto} .fab{right:calc(50% - 280px + 16px)} }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>JFrytesPlanner</h1>
+    <div class="sub" id="hdrSub"></div>
+  </div>
+  <div class="nav">
+    <button class="pill" id="todayBtn" type="button">Today</button>
+    <button class="icon-btn" id="menuBtn" type="button" aria-label="Schedule updates and settings">⋯</button>
+  </div>
+</header>
+
+<main>
+  <div class="hint" id="installHint" hidden>
+    <div><b>Add this to your Home Screen</b>Tap the Share button <span aria-hidden="true">⎙</span> in Safari, then “Add to Home Screen”. It then opens like an app and works without internet.</div>
+    <button type="button" class="pill" id="hideHint">Got it</button>
+  </div>
+
+  <section class="view" id="v-today">
+    <h2 id="todayTitle">Today</h2>
+    <div class="list" id="todayList"></div>
+    <h2 id="tmrwTitle">Tomorrow</h2>
+    <div class="list" id="tmrwList"></div>
+  </section>
+
+  <section class="view" id="v-week" hidden>
+    <div class="wk-head">
+      <button class="icon-btn" id="wkPrev" type="button" aria-label="Previous week">‹</button>
+      <b id="wkLabel"></b>
+      <button class="icon-btn" id="wkNext" type="button" aria-label="Next week">›</button>
+    </div>
+    <div id="weekBody"></div>
+  </section>
+
+  <section class="view" id="v-month" hidden>
+    <div class="wk-head">
+      <button class="icon-btn" id="moPrev" type="button" aria-label="Previous month">‹</button>
+      <b id="moLabel"></b>
+      <button class="icon-btn" id="moNext" type="button" aria-label="Next month">›</button>
+    </div>
+    <div class="cal" id="cal"></div>
+    <h2 id="selTitle"></h2>
+    <div class="list" id="selList"></div>
+  </section>
+</main>
+
+<button class="fab" id="fab" type="button" aria-label="Add a session">+</button>
+
+<nav class="tabs">
+  <button type="button" data-view="today" class="on"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Today</button>
+  <button type="button" data-view="week"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Week</button>
+  <button type="button" data-view="month"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 14h2M12 14h2M16 14h2M8 17h2M12 17h2"/></svg>Month</button>
+</nav>
+
+<div id="sheetRoot"></div>
+
+<script>
+(function(){
+const DN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const DL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const KEY='jf-planner-v2';
+const VERSION='1.1.0';
+
+// Fallback copy of the published schedule (the wall list), used until schedule.json has been fetched once.
+const FALLBACK={publishedAt:'2026-10-14T21:20:00+03:00',sessions:[
+  {id:'eliz-sun-thu',students:'Eliz',days:[0,1,2,3,4],start:'',end:'',note:'',date:null,rev:1},
+  {id:'vianca-maia-alexander-fri',students:'Vianca, Maia, Alexander',days:[5],start:'13:00',end:'15:00',note:'',date:null,rev:1},
+  {id:'kassandra-fri',students:'Kassandra',days:[5],start:'15:30',end:'17:30',note:'',date:null,rev:1},
+  {id:'hebah-fri',students:'Hebah',days:[5],start:'15:30',end:'',note:'',date:null,rev:1},
+  {id:'elly-sat',students:'Elly',days:[6],start:'13:00',end:'14:00',note:'',date:null,rev:1},
+  {id:'elly-mon-wed',students:'Elly',days:[1,3],start:'17:45',end:'18:45',note:'',date:null,rev:1},
+  {id:'malik-aisel-sat',students:'Malik, Aisel',days:[6],start:'14:00',end:'16:00',note:'',date:null,rev:1},
+  {id:'hebah-sat',students:'Hebah',days:[6],start:'16:00',end:'',note:'',date:null,rev:1}
+]};
+
+// Store = published schedule ("base", managed from Jobim's laptop) + edits made on this phone ("local").
+// A phone edit of a published session sticks until that session is republished with a newer rev; then the published version wins.
+function uid(){return 'p-'+Math.random().toString(36).slice(2,10)}
+function blankLocal(){ return {added:[],edited:{},deleted:{}}; }
+function load(){ try{const r=localStorage.getItem(KEY); if(r){const d=JSON.parse(r); if(d&&d.base&&Array.isArray(d.base.sessions)) return {base:d.base,local:Object.assign(blankLocal(),d.local||{})};} }catch(e){} return {base:FALLBACK,local:blankLocal()}; }
+let store=load(), sessions=[], lastFetch=null;
+function rebuild(){
+  const L=store.local, out=[];
+  for(const s of store.base.sessions){
+    if(L.deleted[s.id]!==undefined){ if(L.deleted[s.id]===s.rev) continue; delete L.deleted[s.id]; }
+    const e=L.edited[s.id]; if(e){ if(e.baseRev===s.rev){ out.push({...e.rec,id:s.id,rev:s.rev}); continue; } delete L.edited[s.id]; }
+    out.push(s);
+  }
+  sessions=out.concat(L.added);
+}
+function save(){ rebuild(); try{localStorage.setItem(KEY,JSON.stringify(store))}catch(e){ toast('Could not save on this phone') } }
+save();
+function upsert(rec){ // rec from the editor; id tells us where it lives
+  const L=store.local, base=store.base.sessions.find(s=>s.id===rec.id);
+  if(base) L.edited[rec.id]={rec,baseRev:base.rev};
+  else { const i=L.added.findIndex(s=>s.id===rec.id); if(i>=0) L.added[i]=rec; else L.added.push(rec); }
+  save();
+}
+function remove(id){
+  const L=store.local, base=store.base.sessions.find(s=>s.id===id);
+  if(base){ L.deleted[id]=base.rev; delete L.edited[id]; } else L.added=L.added.filter(s=>s.id!==id);
+  save();
+}
+function fmtStamp(s){ const d=new Date(s); if(isNaN(d)) return ''; return `${d.getDate()} ${MN[d.getMonth()].slice(0,3)}, ${fmtTime(String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'))}`; }
+async function syncSchedule(manual){
+  if(!navigator.onLine && !manual){ return; }
+  try{
+    const r=await fetch('schedule.json',{cache:'no-store'}); if(!r.ok) throw 0;
+    const d=await r.json(); if(!d||!Array.isArray(d.sessions)) throw 0;
+    lastFetch=new Date();
+    const changed=d.publishedAt!==store.base.publishedAt;
+    if(changed){ store.base=d; save(); render(); toast('Schedule updated'); }
+    else if(manual) toast('Already up to date');
+  }catch(e){ if(manual) toast(navigator.onLine?'Could not reach the schedule':'You are offline — showing the saved copy'); }
+}
+
+// ---- date helpers (local time) ----
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const fromIso=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
+const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
+const startOfWeek=d=>addDays(d,-d.getDay()); // Sunday
+const sameDay=(a,b)=>iso(a)===iso(b);
+function fmtTime(t){ if(!t) return ''; let [h,m]=t.split(':').map(Number); const ap=h>=12?'PM':'AM'; h=h%12||12; return h+(m?':'+String(m).padStart(2,'0'):'')+' '+ap; }
+function mins(t){ if(!t) return 1e9; const [h,m]=t.split(':').map(Number); return h*60+m; }
+function sessionsOn(d){
+  const s=iso(d), dow=d.getDay();
+  return sessions.filter(x=>x.date?x.date===s:(x.days||[]).includes(dow)).sort((a,b)=>mins(a.start)-mins(b.start));
+}
+function shortDate(d){ return DN[d.getDay()]+', '+d.getDate()+' '+MN[d.getMonth()].slice(0,3); }
+
+// ---- state ----
+let view='today', weekAnchor=new Date(), monthAnchor=new Date(), selDay=new Date();
+
+// ---- rendering ----
+function cardHTML(x,d){
+  const now=new Date(); let cls='card';
+  if(d && sameDay(d,now) && x.start){ const n=now.getHours()*60+now.getMinutes(); const e=x.end?mins(x.end):mins(x.start)+60; if(n>=mins(x.start)&&n<e) cls+=' now'; else if(n>=e) cls+=' past'; }
+  const tag=x.date?'one-off':(cls.includes(' now')?'now':'');
+  return `<button type="button" class="${cls}" data-id="${x.id}">
+    <span class="time">${x.start?fmtTime(x.start):'<small>time not set</small>'}${x.end?`<small>to ${fmtTime(x.end)}</small>`:''}</span>
+    <span class="who">${esc(x.students)}${x.note?`<span class="note">${esc(x.note)}</span>`:''}</span>
+    ${tag?`<span class="tag">${tag}</span>`:'<span></span>'}
+  </button>`;
+}
+function listHTML(d,emptyMsg){ const l=sessionsOn(d); return l.length?l.map(x=>cardHTML(x,d)).join(''):`<div class="empty">${emptyMsg}</div>`; }
+function esc(s){return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+function renderToday(){
+  const t=new Date(), tm=addDays(t,1);
+  const n=sessionsOn(t).length;
+  document.getElementById('todayTitle').textContent=`Today · ${DL[t.getDay()]} ${t.getDate()} ${MN[t.getMonth()]} · ${n?n+' session'+(n>1?'s':''):'free'}`;
+  document.getElementById('todayList').innerHTML=listHTML(t,'No tutorials today.');
+  document.getElementById('tmrwTitle').textContent=`Tomorrow · ${DL[tm.getDay()]}`;
+  document.getElementById('tmrwList').innerHTML=listHTML(tm,'Nothing scheduled.');
+}
+function renderWeek(){
+  const s=startOfWeek(weekAnchor), e=addDays(s,6), now=new Date();
+  document.getElementById('wkLabel').textContent=`${s.getDate()} ${MN[s.getMonth()].slice(0,3)} – ${e.getDate()} ${MN[e.getMonth()].slice(0,3)}`;
+  let h='';
+  for(let i=0;i<7;i++){ const d=addDays(s,i); const l=sessionsOn(d);
+    h+=`<div class="day ${sameDay(d,now)?'is-today':''}"><div class="day-h"><span class="dn">${DL[d.getDay()]}</span><span class="dd">${d.getDate()} ${MN[d.getMonth()].slice(0,3)}</span></div>`;
+    h+=l.length?`<div class="list">${l.map(x=>cardHTML(x,d)).join('')}</div>`:`<div class="none">—</div>`; h+='</div>'; }
+  document.getElementById('weekBody').innerHTML=h;
+}
+function renderMonth(){
+  const y=monthAnchor.getFullYear(), m=monthAnchor.getMonth(), now=new Date();
+  document.getElementById('moLabel').textContent=`${MN[m]} ${y}`;
+  const first=new Date(y,m,1), start=startOfWeek(first);
+  let h=DN.map(n=>`<div class="dow">${n}</div>`).join('');
+  for(let i=0;i<42;i++){ const d=addDays(start,i); if(i>=35 && d.getMonth()!==m) break;
+    const c=sessionsOn(d).length, cls=['other','today','sel','wknd'].filter((k,j)=>[d.getMonth()!==m,sameDay(d,now),sameDay(d,selDay),(d.getDay()===5||d.getDay()===6)][j]).join(' ');
+    h+=`<button type="button" class="${cls}" data-date="${iso(d)}"><span>${d.getDate()}</span><span class="cnt ${c?'':'z'}">${c}</span></button>`; }
+  document.getElementById('cal').innerHTML=h;
+  document.getElementById('selTitle').textContent=shortDate(selDay);
+  document.getElementById('selList').innerHTML=listHTML(selDay,'No tutorials on this day.');
+}
+function render(){
+  document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!=='v-'+view);
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.view===view));
+  const t=new Date(); document.getElementById('hdrSub').textContent=`${DL[t.getDay()]}, ${t.getDate()} ${MN[t.getMonth()]} ${t.getFullYear()}`;
+  if(view==='today') renderToday(); else if(view==='week') renderWeek(); else renderMonth();
+}
+
+// ---- editor sheet ----
+const root=document.getElementById('sheetRoot');
+function closeSheet(){ root.innerHTML=''; }
+function openEditor(id,presetDate){
+  const x=id?sessions.find(s=>s.id===id):{id:null,students:'',days:[],start:'',end:'',note:'',date:presetDate||null};
+  const draft={...x,days:[...(x.days||[])]}; let mode=draft.date?'once':'weekly';
+  root.innerHTML=`<div class="scrim" id="scrim"></div><div class="sheet" role="dialog" aria-label="${id?'Edit session':'New session'}">
+    <h3>${id?'Edit session':'New session'}</h3>
+    <div class="field"><label for="fStudents">Student(s)</label><input type="text" id="fStudents" placeholder="e.g. Vianca, Maia, Alexander" value="${esc(draft.students)}"></div>
+    <div class="field"><label>Repeats</label><div class="seg"><button type="button" id="mWeekly" class="${mode==='weekly'?'on':''}">Every week</button><button type="button" id="mOnce" class="${mode==='once'?'on':''}">One date only</button></div></div>
+    <div class="field" id="daysField"><label>Days</label><div class="chips" id="chips">${DN.map((n,i)=>`<button type="button" data-d="${i}" class="${draft.days.includes(i)?'on':''}">${n}</button>`).join('')}</div></div>
+    <div class="field" id="dateField"><label for="fDate">Date</label><input type="date" id="fDate" value="${draft.date||iso(new Date())}"></div>
+    <div class="row"><div class="field"><label for="fStart">Start</label><input type="time" id="fStart" value="${draft.start}"></div><div class="field"><label for="fEnd">End (optional)</label><input type="time" id="fEnd" value="${draft.end}"></div></div>
+    <div class="field"><label for="fNote">Note (optional)</label><input type="text" id="fNote" placeholder="e.g. Math exam prep, bring workbook" value="${esc(draft.note)}"></div>
+    <div class="err" id="fErr" hidden></div>
+    <div class="actions">${id?'<button type="button" class="btn danger" id="del">Delete</button>':''}<button type="button" class="btn ghost" id="cancel">Cancel</button><button type="button" class="btn primary" id="saveBtn">Save</button></div>
+    <div id="confirmBox"></div>
+  </div>`;
+  const $=s=>root.querySelector(s);
+  function syncMode(){ $('#mWeekly').classList.toggle('on',mode==='weekly'); $('#mOnce').classList.toggle('on',mode==='once'); $('#daysField').hidden=mode!=='weekly'; $('#dateField').hidden=mode!=='once'; }
+  syncMode();
+  $('#mWeekly').onclick=()=>{mode='weekly';syncMode()}; $('#mOnce').onclick=()=>{mode='once';syncMode()};
+  $('#chips').addEventListener('click',e=>{const b=e.target.closest('button'); if(!b) return; const d=+b.dataset.d; const i=draft.days.indexOf(d); if(i>=0) draft.days.splice(i,1); else draft.days.push(d); b.classList.toggle('on');});
+  $('#scrim').onclick=closeSheet; $('#cancel').onclick=closeSheet;
+  $('#saveBtn').onclick=()=>{
+    const students=$('#fStudents').value.trim(), start=$('#fStart').value, end=$('#fEnd').value, note=$('#fNote').value.trim();
+    const err=$('#fErr'); err.hidden=true;
+    if(!students){ err.textContent='Add at least one student name.'; err.hidden=false; return; }
+    if(mode==='weekly'&&!draft.days.length){ err.textContent='Pick at least one day.'; err.hidden=false; return; }
+    if(end&&start&&mins(end)<=mins(start)){ err.textContent='End time must be after the start time.'; err.hidden=false; return; }
+    const rec={id:draft.id||uid(),students,start,end,note,days:mode==='weekly'?draft.days.sort():[],date:mode==='once'?$('#fDate').value:null};
+    upsert(rec); closeSheet(); render(); toast(draft.id?'Saved':'Added');
+  };
+  if(id) $('#del').onclick=()=>{ $('#confirmBox').innerHTML=`<div class="confirm">Delete ${esc(draft.students)}'s session? <button type="button" class="pill" id="yes">Yes, delete</button></div>`; $('#yes').onclick=()=>{ remove(id); closeSheet(); render(); toast('Deleted'); }; };
+  setTimeout(()=>{ if(!id) $('#fStudents').focus(); },50);
+}
+
+// ---- menu: sync status / refresh / discard phone edits ----
+function openMenu(){
+  const L=store.local, n=L.added.length+Object.keys(L.edited).length+Object.keys(L.deleted).length;
+  root.innerHTML=`<div class="scrim" id="scrim"></div><div class="sheet menu" role="dialog" aria-label="Schedule settings">
+    <h3>Schedule</h3>
+    <p>Published list last changed <b>${fmtStamp(store.base.publishedAt)||'—'}</b>.<br>${lastFetch?'Checked for updates at '+fmtStamp(lastFetch.toISOString())+'.':'Not checked yet this time.'}<br>${navigator.onLine?'Online':'Offline — showing the saved copy'}.</p>
+    <div class="actions"><button type="button" class="btn primary" id="refresh">Check for updates</button></div>
+    <p style="margin-top:14px">${n?`${n} change${n>1?'s':''} made on this phone, kept on top of the published list.`:'No changes made on this phone.'}</p>
+    <div class="actions"><button type="button" class="btn ghost" id="discard" ${n?'':'disabled'}>Discard phone changes</button><button type="button" class="btn ghost" id="close">Close</button></div>
+    <div id="confirmBox"></div>
+    <p style="margin-top:14px;font-size:12px">JFrytesPlanner · version ${VERSION}</p>
+  </div>`;
+  const $=s=>root.querySelector(s);
+  $('#scrim').onclick=closeSheet; $('#close').onclick=closeSheet;
+  $('#refresh').onclick=async()=>{ await syncSchedule(true); if(root.innerHTML) openMenu(); };
+  $('#discard').onclick=()=>{ $('#confirmBox').innerHTML=`<div class="confirm">Remove the changes made on this phone and go back to the published list? <button type="button" class="pill" id="yes">Yes, discard</button></div>`; $('#yes').onclick=()=>{ store.local=blankLocal(); save(); closeSheet(); render(); toast('Back to the published list'); }; };
+}
+
+let toastT; function toast(msg,onTap){ let t=document.querySelector('.toast'); if(t) t.remove(); t=document.createElement(onTap?'button':'div'); t.className='toast'; t.textContent=msg; if(onTap){ t.type='button'; t.onclick=onTap; } document.body.appendChild(t); clearTimeout(toastT); toastT=setTimeout(()=>t.remove(),onTap?8000:1800); }
+
+// ---- events ----
+document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('button'); if(!b) return; view=b.dataset.view; render();});
+document.getElementById('todayBtn').onclick=()=>{ weekAnchor=new Date(); monthAnchor=new Date(); selDay=new Date(); view='today'; render(); };
+document.getElementById('menuBtn').onclick=openMenu;
+document.getElementById('fab').onclick=()=>openEditor(null, view==='month'?iso(selDay):null);
+document.getElementById('wkPrev').onclick=()=>{weekAnchor=addDays(weekAnchor,-7);render()};
+document.getElementById('wkNext').onclick=()=>{weekAnchor=addDays(weekAnchor,7);render()};
+document.getElementById('moPrev').onclick=()=>{monthAnchor=new Date(monthAnchor.getFullYear(),monthAnchor.getMonth()-1,1);render()};
+document.getElementById('moNext').onclick=()=>{monthAnchor=new Date(monthAnchor.getFullYear(),monthAnchor.getMonth()+1,1);render()};
+document.querySelector('main').addEventListener('click',e=>{
+  const day=e.target.closest('.cal button[data-date]'); if(day){ selDay=fromIso(day.dataset.date); if(selDay.getMonth()!==monthAnchor.getMonth()) monthAnchor=new Date(selDay); render(); return; }
+  const c=e.target.closest('.card[data-id]'); if(c) openEditor(c.dataset.id);
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeSheet(); });
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ if(!root.innerHTML) render(); syncSchedule(false); } });
+window.addEventListener('online',()=>syncSchedule(false));
+if(location.hash==='#week') view='week'; else if(location.hash==='#month') view='month';
+render();
+syncSchedule(false);
+setInterval(()=>{ if(!root.innerHTML) render(); },60000); // keep the "now" marker fresh
+
+// ---- install hint (iPhone Safari, not yet on the Home Screen) ----
+try{
+  const standalone=window.navigator.standalone===true || matchMedia('(display-mode: standalone)').matches;
+  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  if(ios && !standalone && !localStorage.getItem('hint-dismissed')){ document.getElementById('installHint').hidden=false; }
+  document.getElementById('hideHint').onclick=()=>{ document.getElementById('installHint').hidden=true; try{localStorage.setItem('hint-dismissed','1')}catch(e){} };
+}catch(e){}
+
+// ---- offline: service worker ----
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').then(reg=>{
+      reg.addEventListener('updatefound',()=>{ const nw=reg.installing; nw&&nw.addEventListener('statechange',()=>{ if(nw.state==='installed' && navigator.serviceWorker.controller) toast('Update ready — tap to refresh',()=>location.reload()); }); });
+    }).catch(()=>{});
+  });
+}
+})();
+</script>
+</body>
+</html>

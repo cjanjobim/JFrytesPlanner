@@ -1,0 +1,13 @@
+{
+  "publishedAt": "2026-10-14T21:20:00+03:00",
+  "sessions": [
+    { "id": "eliz-sun-thu", "students": "Eliz", "days": [0, 1, 2, 3, 4], "start": "", "end": "", "note": "", "date": null, "rev": 1 },
+    { "id": "vianca-maia-alexander-fri", "students": "Vianca, Maia, Alexander", "days": [5], "start": "13:00", "end": "15:00", "note": "", "date": null, "rev": 1 },
+    { "id": "kassandra-fri", "students": "Kassandra", "days": [5], "start": "15:30", "end": "17:30", "note": "", "date": null, "rev": 1 },
+    { "id": "hebah-fri", "students": "Hebah", "days": [5], "start": "15:30", "end": "", "note": "", "date": null, "rev": 1 },
+    { "id": "elly-sat", "students": "Elly", "days": [6], "start": "13:00", "end": "14:00", "note": "", "date": null, "rev": 1 },
+    { "id": "elly-mon-wed", "students": "Elly", "days": [1, 3], "start": "17:45", "end": "18:45", "note": "", "date": null, "rev": 1 },
+    { "id": "malik-aisel-sat", "students": "Malik, Aisel", "days": [6], "start": "14:00", "end": "16:00", "note": "", "date": null, "rev": 1 },
+    { "id": "hebah-sat", "students": "Hebah", "days": [6], "start": "16:00", "end": "", "note": "", "date": null, "rev": 1 }
+  ]
+}
