@@ -82,16 +82,27 @@ h2:first-child{margin-top:0}
 .day .list .card{padding:8px 10px}
 .day .none{color:var(--muted);font-size:13px;padding-left:2px}
 
-/* month */
-.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+/* month: each day lists its tutees' names */
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
 .cal .dow{text-align:center;font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.04em;padding-bottom:4px}
-.cal button{background:var(--surface);border:1px solid var(--line);border-radius:10px;aspect-ratio:1/1.05;max-width:100%;padding:4px 2px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;font-variant-numeric:tabular-nums;font-weight:700;font-size:14px;color:var(--fg)}
+.cal button{background:var(--surface);border:1px solid var(--line);border-radius:9px;min-height:78px;min-width:0;max-width:100%;padding:3px 3px 4px;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:2px;color:var(--fg)}
+.cal button .num{font-variant-numeric:tabular-nums;font-weight:800;font-size:12px;line-height:1.2;text-align:center}
 .cal button.other{opacity:.35}
 .cal button.today{background:var(--today)}
 .cal button.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
-.cal button.wknd{color:var(--accent)}
-.cal .cnt{font-size:10px;font-weight:800;background:var(--accent);color:var(--accent-fg);border-radius:999px;min-width:17px;padding:1px 5px;line-height:1.3}
-.cal .cnt.z{visibility:hidden}
+.cal button.wknd .num{color:var(--accent)}
+.cal .names{display:flex;flex-direction:column;gap:1px;min-width:0}
+.cal .names i{display:block;font-style:normal;font-size:9px;line-height:1.25;font-weight:700;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;padding-left:1px;border-left:2px solid var(--accent)}
+.cal .names i.more{border-left-color:transparent;color:var(--muted);font-weight:600}
+
+/* week: compact time + names line per session */
+.agenda{display:flex;flex-direction:column}
+.agenda .line{display:flex;gap:8px;align-items:baseline;background:none;border:0;padding:4px 0;width:100%;text-align:left;font-size:15px;min-width:0}
+.agenda .line .t{flex:0 0 96px;font-variant-numeric:tabular-nums;color:var(--muted);font-weight:700;font-size:13px;white-space:nowrap}
+.agenda .line .n{font-weight:700;min-width:0;overflow-wrap:anywhere}
+.agenda .line .n small{display:block;font-weight:600;font-size:12px;color:var(--muted)}
+.agenda .line.now .n,.agenda .line.now .t{color:var(--now)}
+.agenda .line.past{opacity:.55}
 
 /* tabs */
 .tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);display:flex;
@@ -194,7 +205,7 @@ const DN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const DL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const KEY='jf-planner-v2';
-const VERSION='1.1.0';
+const VERSION='1.2.0';
 
 // Fallback copy of the published schedule (the wall list), used until schedule.json has been fetched once.
 const FALLBACK={publishedAt:'2026-10-14T21:20:00+03:00',sessions:[
@@ -288,13 +299,26 @@ function renderToday(){
   document.getElementById('tmrwTitle').textContent=`Tomorrow · ${DL[tm.getDay()]}`;
   document.getElementById('tmrwList').innerHTML=listHTML(tm,'Nothing scheduled.');
 }
+function timeState(x,d){ // 'now' | 'past' | ''
+  const now=new Date(); if(!d||!sameDay(d,now)||!x.start) return '';
+  const n=now.getHours()*60+now.getMinutes(), e=x.end?mins(x.end):mins(x.start)+60;
+  return n>=mins(x.start)&&n<e?'now':(n>=e?'past':'');
+}
+function fmtRange(x){ // "1–3 PM", "3:30–5:30 PM", "11 AM–1 PM", "3:30 PM", "no time"
+  if(!x.start) return 'no time';
+  if(!x.end) return fmtTime(x.start);
+  const a=fmtTime(x.start), b=fmtTime(x.end), ap=a.slice(-2), bp=b.slice(-2);
+  return ap===bp?`${a.slice(0,-3)}–${b}`:`${a}–${b}`;
+}
+function namesOf(x){ return String(x.students||'').split(',').map(s=>s.trim()).filter(Boolean); }
 function renderWeek(){
   const s=startOfWeek(weekAnchor), e=addDays(s,6), now=new Date();
   document.getElementById('wkLabel').textContent=`${s.getDate()} ${MN[s.getMonth()].slice(0,3)} – ${e.getDate()} ${MN[e.getMonth()].slice(0,3)}`;
   let h='';
   for(let i=0;i<7;i++){ const d=addDays(s,i); const l=sessionsOn(d);
     h+=`<div class="day ${sameDay(d,now)?'is-today':''}"><div class="day-h"><span class="dn">${DL[d.getDay()]}</span><span class="dd">${d.getDate()} ${MN[d.getMonth()].slice(0,3)}</span></div>`;
-    h+=l.length?`<div class="list">${l.map(x=>cardHTML(x,d)).join('')}</div>`:`<div class="none">—</div>`; h+='</div>'; }
+    h+=l.length?`<div class="agenda">${l.map(x=>`<button type="button" class="line ${timeState(x,d)}" data-id="${x.id}"><span class="t">${fmtRange(x)}</span><span class="n">${esc(x.students)}${x.note?`<small>${esc(x.note)}</small>`:''}</span></button>`).join('')}</div>`:`<div class="none">—</div>`;
+    h+='</div>'; }
   document.getElementById('weekBody').innerHTML=h;
 }
 function renderMonth(){
@@ -302,9 +326,12 @@ function renderMonth(){
   document.getElementById('moLabel').textContent=`${MN[m]} ${y}`;
   const first=new Date(y,m,1), start=startOfWeek(first);
   let h=DN.map(n=>`<div class="dow">${n}</div>`).join('');
+  const MAX=5;
   for(let i=0;i<42;i++){ const d=addDays(start,i); if(i>=35 && d.getMonth()!==m) break;
-    const c=sessionsOn(d).length, cls=['other','today','sel','wknd'].filter((k,j)=>[d.getMonth()!==m,sameDay(d,now),sameDay(d,selDay),(d.getDay()===5||d.getDay()===6)][j]).join(' ');
-    h+=`<button type="button" class="${cls}" data-date="${iso(d)}"><span>${d.getDate()}</span><span class="cnt ${c?'':'z'}">${c}</span></button>`; }
+    const names=[]; sessionsOn(d).forEach(x=>namesOf(x).forEach(n=>names.push(n)));
+    const shown=names.length>MAX?names.slice(0,MAX-1):names, more=names.length-shown.length;
+    const cls=['other','today','sel','wknd'].filter((k,j)=>[d.getMonth()!==m,sameDay(d,now),sameDay(d,selDay),(d.getDay()===5||d.getDay()===6)][j]).join(' ');
+    h+=`<button type="button" class="${cls}" data-date="${iso(d)}" aria-label="${d.getDate()} ${MN[d.getMonth()]}${names.length?': '+esc(names.join(', ')):''}"><span class="num">${d.getDate()}</span><span class="names">${shown.map(n=>`<i>${esc(n)}</i>`).join('')}${more?`<i class="more">+${more} more</i>`:''}</span></button>`; }
   document.getElementById('cal').innerHTML=h;
   document.getElementById('selTitle').textContent=shortDate(selDay);
   document.getElementById('selList').innerHTML=listHTML(selDay,'No tutorials on this day.');
@@ -384,7 +411,7 @@ document.getElementById('moPrev').onclick=()=>{monthAnchor=new Date(monthAnchor.
 document.getElementById('moNext').onclick=()=>{monthAnchor=new Date(monthAnchor.getFullYear(),monthAnchor.getMonth()+1,1);render()};
 document.querySelector('main').addEventListener('click',e=>{
   const day=e.target.closest('.cal button[data-date]'); if(day){ selDay=fromIso(day.dataset.date); if(selDay.getMonth()!==monthAnchor.getMonth()) monthAnchor=new Date(selDay); render(); return; }
-  const c=e.target.closest('.card[data-id]'); if(c) openEditor(c.dataset.id);
+  const c=e.target.closest('.card[data-id], .line[data-id]'); if(c) openEditor(c.dataset.id);
 });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeSheet(); });
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ if(!root.innerHTML) render(); syncSchedule(false); } });
