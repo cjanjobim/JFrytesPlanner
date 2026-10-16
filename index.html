@@ -85,7 +85,7 @@ h2:first-child{margin-top:0}
 /* month: each day lists its tutees' names */
 .cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
 .cal .dow{text-align:center;font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.04em;padding-bottom:4px}
-.cal button{background:var(--surface);border:1px solid var(--line);border-radius:9px;min-height:78px;min-width:0;max-width:100%;padding:3px 3px 4px;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:2px;color:var(--fg)}
+.cal button{background:var(--surface);border:1px solid var(--line);border-radius:9px;min-height:64px;min-width:0;max-width:100%;padding:3px 3px 4px;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:2px;color:var(--fg)}
 .cal button .num{font-variant-numeric:tabular-nums;font-weight:800;font-size:12px;line-height:1.2;text-align:center}
 .cal button.other{opacity:.35}
 .cal button.today{background:var(--today)}
@@ -94,6 +94,8 @@ h2:first-child{margin-top:0}
 .cal .names{display:flex;flex-direction:column;gap:1px;min-width:0}
 .cal .names i{display:block;font-style:normal;font-size:9px;line-height:1.25;font-weight:700;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;padding-left:1px;border-left:2px solid var(--accent)}
 .cal .names i.more{border-left-color:transparent;color:var(--muted);font-weight:600}
+.cal .names i.tm{border-left-color:transparent;padding-left:0;color:var(--accent);font-size:8.5px;font-weight:800;margin-top:3px;letter-spacing:0}
+.cal .names i.tm:first-child{margin-top:0}
 
 /* week: compact time + names line per session */
 .agenda{display:flex;flex-direction:column}
@@ -205,7 +207,7 @@ const DN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const DL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const KEY='jf-planner-v2';
-const VERSION='1.2.1';
+const VERSION='1.3.0';
 
 // Fallback copy of the published schedule (the wall list), used until schedule.json has been fetched once.
 const FALLBACK={publishedAt:'2026-10-14T21:20:00+03:00',sessions:[
@@ -326,12 +328,15 @@ function renderMonth(){
   document.getElementById('moLabel').textContent=`${MN[m]} ${y}`;
   const first=new Date(y,m,1), start=startOfWeek(first);
   let h=DN.map(n=>`<div class="dow">${n}</div>`).join('');
-  const MAX=5;
+  const MAX=10; // lines per cell before "+N more"
   for(let i=0;i<42;i++){ const d=addDays(start,i); if(i>=35 && d.getMonth()!==m) break;
-    const names=[]; sessionsOn(d).forEach(x=>namesOf(x).forEach(n=>names.push(n)));
-    const shown=names.length>MAX?names.slice(0,MAX-1):names, more=names.length-shown.length;
+    // one line for the time, then one line per name, per session
+    const lines=[], label=[];
+    sessionsOn(d).forEach(x=>{ const t=x.start?fmtTime(x.start).replace(' ',''):''; if(t) lines.push({t}); namesOf(x).forEach(n=>lines.push({n})); label.push((t?t+' ':'')+x.students); });
+    let shown=lines, more=0;
+    if(lines.length>MAX){ shown=lines.slice(0,MAX-1); more=lines.slice(MAX-1).filter(l=>l.n).length; }
     const cls=['other','today','sel','wknd'].filter((k,j)=>[d.getMonth()!==m,sameDay(d,now),sameDay(d,selDay),(d.getDay()===5||d.getDay()===6)][j]).join(' ');
-    h+=`<button type="button" class="${cls}" data-date="${iso(d)}" aria-label="${d.getDate()} ${MN[d.getMonth()]}${names.length?': '+esc(names.join(', ')):''}"><span class="num">${d.getDate()}</span><span class="names">${shown.map(n=>`<i>${esc(n)}</i>`).join('')}${more?`<i class="more">+${more} more</i>`:''}</span></button>`; }
+    h+=`<button type="button" class="${cls}" data-date="${iso(d)}" aria-label="${d.getDate()} ${MN[d.getMonth()]}${label.length?': '+esc(label.join('; ')):''}"><span class="num">${d.getDate()}</span><span class="names">${shown.map(l=>l.t?`<i class="tm">${esc(l.t)}</i>`:`<i>${esc(l.n)}</i>`).join('')}${more?`<i class="more">+${more} more</i>`:''}</span></button>`; }
   document.getElementById('cal').innerHTML=h;
   document.getElementById('selTitle').textContent=shortDate(selDay);
   document.getElementById('selList').innerHTML=listHTML(selDay,'No tutorials on this day.');
