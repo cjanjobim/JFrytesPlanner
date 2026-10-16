@@ -1,5 +1,5 @@
 // JFrytesPlanner service worker: app shell cached for offline use; schedule.json fetched network-first.
-const VERSION = 'jfplanner-v1.1.0';
+const VERSION = 'jfplanner-v1.2.0';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './schedule.json',
   './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
 
