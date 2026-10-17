@@ -96,6 +96,9 @@ h2:first-child{margin-top:0}
 .cal .names i.more{border-left-color:transparent;color:var(--muted);font-weight:600}
 .cal .names i.tm{border-left-color:transparent;padding-left:0;color:var(--accent);font-size:8.5px;font-weight:800;margin-top:3px;letter-spacing:0}
 .cal .names i.tm:first-child{margin-top:0}
+.cal.week button{min-height:150px}
+.cal.week .names i{font-size:9.5px}
+.cal.week .names i.tm{font-size:9px;white-space:nowrap}
 
 /* week: compact time + names line per session */
 .agenda{display:flex;flex-direction:column}
@@ -176,7 +179,9 @@ h2:first-child{margin-top:0}
       <b id="wkLabel"></b>
       <button class="icon-btn" id="wkNext" type="button" aria-label="Next week">›</button>
     </div>
-    <div id="weekBody"></div>
+    <div class="cal week" id="weekCal"></div>
+    <h2 id="wkSelTitle"></h2>
+    <div class="list" id="wkSelList"></div>
   </section>
 
   <section class="view" id="v-month" hidden>
@@ -207,7 +212,7 @@ const DN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const DL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const KEY='jf-planner-v2';
-const VERSION='1.3.0';
+const VERSION='1.4.0';
 
 // Fallback copy of the published schedule (the wall list), used until schedule.json has been fetched once.
 const FALLBACK={publishedAt:'2026-10-14T21:20:00+03:00',sessions:[
@@ -277,7 +282,7 @@ function sessionsOn(d){
 function shortDate(d){ return DN[d.getDay()]+', '+d.getDate()+' '+MN[d.getMonth()].slice(0,3); }
 
 // ---- state ----
-let view='today', weekAnchor=new Date(), monthAnchor=new Date(), selDay=new Date();
+let view='today', weekAnchor=new Date(), monthAnchor=new Date(), selDay=new Date(), selWeekDay=new Date();
 
 // ---- rendering ----
 function cardHTML(x,d){
@@ -313,30 +318,31 @@ function fmtRange(x){ // "1–3 PM", "3:30–5:30 PM", "11 AM–1 PM", "3:30 PM"
   return ap===bp?`${a.slice(0,-3)}–${b}`:`${a}–${b}`;
 }
 function namesOf(x){ return String(x.students||'').split(',').map(s=>s.trim()).filter(Boolean); }
+// A day box: date number, then for each session its time and one line per name. Shared by Week and Month.
+function dayCellHTML(d,{other=false,max=10,selected}={}){
+  const now=new Date(), lines=[], label=[];
+  sessionsOn(d).forEach(x=>{ const t=x.start?fmtTime(x.start).replace(' ',''):''; if(t) lines.push({t}); namesOf(x).forEach(n=>lines.push({n})); label.push((t?t+' ':'')+x.students); });
+  let shown=lines, more=0;
+  if(lines.length>max){ shown=lines.slice(0,max-1); more=lines.slice(max-1).filter(l=>l.n).length; }
+  const cls=['other','today','sel','wknd'].filter((k,j)=>[other,sameDay(d,now),sameDay(d,selected),(d.getDay()===5||d.getDay()===6)][j]).join(' ');
+  return `<button type="button" class="${cls}" data-date="${iso(d)}" aria-label="${DL[d.getDay()]} ${d.getDate()} ${MN[d.getMonth()]}${label.length?': '+esc(label.join('; ')):''}"><span class="num">${d.getDate()}</span><span class="names">${shown.map(l=>l.t?`<i class="tm">${esc(l.t)}</i>`:`<i>${esc(l.n)}</i>`).join('')}${more?`<i class="more">+${more} more</i>`:''}</span></button>`;
+}
 function renderWeek(){
-  const s=startOfWeek(weekAnchor), e=addDays(s,6), now=new Date();
+  const s=startOfWeek(weekAnchor), e=addDays(s,6);
+  if(selWeekDay<s||selWeekDay>addDays(e,1)) selWeekDay=s;
   document.getElementById('wkLabel').textContent=`${s.getDate()} ${MN[s.getMonth()].slice(0,3)} – ${e.getDate()} ${MN[e.getMonth()].slice(0,3)}`;
-  let h='';
-  for(let i=0;i<7;i++){ const d=addDays(s,i); const l=sessionsOn(d);
-    h+=`<div class="day ${sameDay(d,now)?'is-today':''}"><div class="day-h"><span class="dn">${DL[d.getDay()]}</span><span class="dd">${d.getDate()} ${MN[d.getMonth()].slice(0,3)}</span></div>`;
-    h+=l.length?`<div class="agenda">${l.map(x=>`<button type="button" class="line ${timeState(x,d)}" data-id="${x.id}"><span class="t">${fmtRange(x)}</span><span class="n">${esc(x.students)}${x.note?`<small>${esc(x.note)}</small>`:''}</span></button>`).join('')}</div>`:`<div class="none">—</div>`;
-    h+='</div>'; }
-  document.getElementById('weekBody').innerHTML=h;
+  let h=DN.map(n=>`<div class="dow">${n}</div>`).join('');
+  for(let i=0;i<7;i++) h+=dayCellHTML(addDays(s,i),{max:40,selected:selWeekDay});
+  document.getElementById('weekCal').innerHTML=h;
+  document.getElementById('wkSelTitle').textContent=shortDate(selWeekDay);
+  document.getElementById('wkSelList').innerHTML=listHTML(selWeekDay,'No tutorials on this day.');
 }
 function renderMonth(){
-  const y=monthAnchor.getFullYear(), m=monthAnchor.getMonth(), now=new Date();
+  const y=monthAnchor.getFullYear(), m=monthAnchor.getMonth();
   document.getElementById('moLabel').textContent=`${MN[m]} ${y}`;
   const first=new Date(y,m,1), start=startOfWeek(first);
   let h=DN.map(n=>`<div class="dow">${n}</div>`).join('');
-  const MAX=10; // lines per cell before "+N more"
-  for(let i=0;i<42;i++){ const d=addDays(start,i); if(i>=35 && d.getMonth()!==m) break;
-    // one line for the time, then one line per name, per session
-    const lines=[], label=[];
-    sessionsOn(d).forEach(x=>{ const t=x.start?fmtTime(x.start).replace(' ',''):''; if(t) lines.push({t}); namesOf(x).forEach(n=>lines.push({n})); label.push((t?t+' ':'')+x.students); });
-    let shown=lines, more=0;
-    if(lines.length>MAX){ shown=lines.slice(0,MAX-1); more=lines.slice(MAX-1).filter(l=>l.n).length; }
-    const cls=['other','today','sel','wknd'].filter((k,j)=>[d.getMonth()!==m,sameDay(d,now),sameDay(d,selDay),(d.getDay()===5||d.getDay()===6)][j]).join(' ');
-    h+=`<button type="button" class="${cls}" data-date="${iso(d)}" aria-label="${d.getDate()} ${MN[d.getMonth()]}${label.length?': '+esc(label.join('; ')):''}"><span class="num">${d.getDate()}</span><span class="names">${shown.map(l=>l.t?`<i class="tm">${esc(l.t)}</i>`:`<i>${esc(l.n)}</i>`).join('')}${more?`<i class="more">+${more} more</i>`:''}</span></button>`; }
+  for(let i=0;i<42;i++){ const d=addDays(start,i); if(i>=35 && d.getMonth()!==m) break; h+=dayCellHTML(d,{other:d.getMonth()!==m,selected:selDay}); }
   document.getElementById('cal').innerHTML=h;
   document.getElementById('selTitle').textContent=shortDate(selDay);
   document.getElementById('selList').innerHTML=listHTML(selDay,'No tutorials on this day.');
@@ -407,7 +413,7 @@ let toastT; function toast(msg,onTap){ let t=document.querySelector('.toast'); i
 
 // ---- events ----
 document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('button'); if(!b) return; view=b.dataset.view; render();});
-document.getElementById('todayBtn').onclick=()=>{ weekAnchor=new Date(); monthAnchor=new Date(); selDay=new Date(); view='today'; render(); };
+document.getElementById('todayBtn').onclick=()=>{ weekAnchor=new Date(); monthAnchor=new Date(); selDay=new Date(); selWeekDay=new Date(); view='today'; render(); };
 document.getElementById('menuBtn').onclick=openMenu;
 document.getElementById('fab').onclick=()=>openEditor(null, view==='month'?iso(selDay):null);
 document.getElementById('wkPrev').onclick=()=>{weekAnchor=addDays(weekAnchor,-7);render()};
@@ -415,7 +421,9 @@ document.getElementById('wkNext').onclick=()=>{weekAnchor=addDays(weekAnchor,7);
 document.getElementById('moPrev').onclick=()=>{monthAnchor=new Date(monthAnchor.getFullYear(),monthAnchor.getMonth()-1,1);render()};
 document.getElementById('moNext').onclick=()=>{monthAnchor=new Date(monthAnchor.getFullYear(),monthAnchor.getMonth()+1,1);render()};
 document.querySelector('main').addEventListener('click',e=>{
-  const day=e.target.closest('.cal button[data-date]'); if(day){ selDay=fromIso(day.dataset.date); if(selDay.getMonth()!==monthAnchor.getMonth()) monthAnchor=new Date(selDay); render(); return; }
+  const day=e.target.closest('.cal button[data-date]'); if(day){ const d=fromIso(day.dataset.date);
+    if(view==='week'){ selWeekDay=d; } else { selDay=d; if(d.getMonth()!==monthAnchor.getMonth()) monthAnchor=new Date(d); }
+    render(); return; }
   const c=e.target.closest('.card[data-id], .line[data-id]'); if(c) openEditor(c.dataset.id);
 });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeSheet(); });
